@@ -34,3 +34,7 @@ class UsbDevice:
             # TODO: Logging
             print(f'Failed to copy "{src_path}" to "{dist_path}".\n\tReason: {e}')
             raise
+
+    @property
+    def check_mount(self):
+        return os.path.exists(self.mount_path)

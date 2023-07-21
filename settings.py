@@ -1,0 +1,12 @@
+import datetime
+import os
+
+COPY_TIME = datetime.timedelta(hours=0, minutes=30, seconds=0)
+SLEEP_TIME = datetime.timedelta(hours=0, minutes=5, seconds=0)
+
+SRC_DB_CONNECTION = os.environ['SRC_DB_CONNECTION']
+SRC_VIDEO_PATH = os.environ['SRC_VIDEO_PATH']
+
+DST_DB_NAME = 'Telemetry.db'
+REPORT_FILE = 'report.txt'
+

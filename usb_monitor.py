@@ -29,14 +29,17 @@ class LinuxUsbMonitor(threading.Thread):
         return monitor
 
     def run(self):
-        actions_reaction = [self.__ADD_ACTION, self.__REMOVE_ACTION]
+        # actions_reaction = [self.__ADD_ACTION, self.__REMOVE_ACTION]
         for device in iter(self.__monitor.poll, None):
-            if device.action in actions_reaction and device.action == self.__ADD_ACTION:
+            if device.action == self.__ADD_ACTION:
                 usb_device = self.__create_usb(device.device_path)
                 if usb_device:
-                    usb_device.clear()
-                    self.__usb_ready_queue.put(pickle.dumps(usb_device))
-
+                    try:
+                        usb_device.clear()
+                        self.__usb_ready_queue.put(pickle.dumps(usb_device))
+                    except Exception as e:
+                        # TODO: Logging
+                        print(f'Failed to process usb device "{usb_device}".\n\tReason: {e}')
 
     def __create_usb(self, device_path):
         dev_path = device_path
@@ -47,9 +50,8 @@ class LinuxUsbMonitor(threading.Thread):
         device_additional_data = self.__lsblk_command.get_disks({'name': fullname[0]})
         if device_additional_data:
             if len(fullname) == 2:
-                mount = \
-                    list(filter(lambda x: x['name'] == fullname[1], device_additional_data[0]['children']))[0][
-                        'mountpoint']
+                mount = list(filter(lambda x: x['name'] == fullname[1],
+                                    device_additional_data[0]['children']))[0]['mountpoint']
             else:
                 mount = device_additional_data[0]['mountpoint']
             print(f'MOUNTPOINT: {mount}')
