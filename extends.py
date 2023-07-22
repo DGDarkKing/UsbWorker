@@ -38,5 +38,5 @@ def strings_to_dict(lines: list[str], spliter):
     result = {}
     for line in lines:
         key, val = spliter(line)
-        result[key] = val
+        result[key] = val.strip()
     return result

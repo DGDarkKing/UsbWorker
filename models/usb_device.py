@@ -23,13 +23,18 @@ class UsbDevice:
                 # TODO: Logging
                 print(f'Failed to delete "{file_path}".\n\tReason: {e}')
 
-    def copy(self, src_path, dist_dir = './'):
+    def copy(self, src_path: str, dist_dir = './', rewrite=False):
         dist_path = os.path.join(self.mount_path, dist_dir)
+        name = src_path[src_path.rfind('/')+1 :]
+        if name == src_path:
+            name = src_path[src_path.rfind('\\')+1 :]
+        dist_view = os.path.join(dist_path, name)
         try:
-            if os.path.isfile(src_path):
-                shutil.copy(src_path, dist_path)
-            elif os.path.isdir(src_path):
-                copy_tree(src_path, dist_path)
+            if not os.path.exists(dist_view):
+                if os.path.isfile(src_path) and not os.path.isfile(dist_view):
+                    shutil.copy(src_path, dist_path)
+                elif os.path.isdir(src_path) and not os.path.isdir(dist_view):
+                    copy_tree(src_path, dist_path)
         except Exception as e:
             # TODO: Logging
             print(f'Failed to copy "{src_path}" to "{dist_path}".\n\tReason: {e}')

@@ -32,8 +32,7 @@ class LinuxUsbMonitor(threading.Thread):
         # actions_reaction = [self.__ADD_ACTION, self.__REMOVE_ACTION]
         for device in iter(self.__monitor.poll, None):
             if device.action == self.__ADD_ACTION:
-                usb_device = self.__create_usb(device.device_path)
-                if usb_device:
+                if usb_device := self.__create_usb(device.device_path):
                     try:
                         usb_device.clear()
                         self.__usb_ready_queue.put(pickle.dumps(usb_device))

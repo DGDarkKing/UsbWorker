@@ -5,7 +5,7 @@ import queue
 import peewee
 
 import settings
-from copier import start_copy
+from copier import Copier
 from models.usb_device import UsbDevice
 from usb_monitor import LinuxUsbMonitor
 import models.db_models as db
@@ -27,9 +27,11 @@ def main():
             continue
 
         db.DST_DB = peewee.SqliteDatabase(os.path.join(usb_device.mount_path, settings.DST_DB_NAME))
-        db.init_db(db.SRC_DB)
-        db.create_tables(db.SRC_DB)
-        start_copy(usb_device)
+        db.init_db(db.DST_DB)
+        db.create_tables(db.DST_DB)
+
+        copier = Copier(usb_device, settings.REPORT_FILE)
+        copier.start_copy()
 
 
 

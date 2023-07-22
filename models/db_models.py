@@ -13,6 +13,11 @@ class BaseModel(peewee.Model):
     class Meta:
         database = DB
 
+    @classmethod
+    def using(cls, db):
+        cls._meta.database.initialize(db)
+        return cls
+
 
 class Video(BaseModel):
     class Meta:
@@ -26,7 +31,6 @@ class Video(BaseModel):
     record_time = peewee.DateTimeField(default=datetime.datetime.now)
     finish_record = peewee.DateTimeField(index=True, null=True)
 
-    @property
     @staticmethod
     def plug():
         return model_to_dict(Video(
@@ -37,14 +41,18 @@ class Video(BaseModel):
 
     @staticmethod
     def create_plugs(video_ids: list):
-        exist_videos = Video.select(Video.id).where(Video.id << video_ids)
-        plug = Video.plug
+        exist_video_ids = [video.id for video in Video.select(Video.id).where(Video.id << video_ids)]
+        plug = Video.plug()
+        plug.pop('id', None)
         if plugs := [
-            {**{'id': video.id}, **plug}
-            for video in exist_videos
-            if video.id not in video_ids
+            {**{'id': v_id}, **plug}
+            for v_id in video_ids
+            if v_id not in exist_video_ids
         ]:
             Video.insert_many(plugs).execute()
+
+    def __eq__(self, other):
+        return model_to_dict(self) == model_to_dict(other)
 
     def update_all_data(self, video):
         (self.render_name, self.render_fps,
@@ -67,6 +75,13 @@ class BaseEventTelemetryNetwork(BaseModel):
     rendered_video_time = peewee.TimeField()
     source_video_time = peewee.TimeField()
     video = peewee.ForeignKeyField(Video)
+
+    @staticmethod
+    def map_to_dict(record):
+        result = model_to_dict(record)
+        video_data = result.pop('video', None)
+        result['video'] = video_data['id']
+        return result
 
     @staticmethod
     def fields():
@@ -94,7 +109,7 @@ def init_db(db):
 
 
 def create_tables(db):
-    DB.create_tables([Video,
+    db.create_tables([Video,
                       PeopleForbiddenZone_EventTelemetryNetrwork_Model, FrontLoader_EventTelemetryNetrwork_Model
                       ])
 
