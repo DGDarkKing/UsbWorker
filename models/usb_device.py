@@ -11,12 +11,14 @@ class UsbDevice:
     mount_path: str
     dt_connect: datetime.datetime = field(default_factory=datetime.datetime.now)
 
-    def clear(self):
+    def clear(self, except_files: list[str] = None):
+        except_files = [os.path.join(self.mount_path, file) for file in except_files]
         for filename in os.listdir(self.mount_path):
             file_path = os.path.join(self.mount_path, filename)
             try:
                 if os.path.isfile(file_path):
-                    os.remove(file_path)
+                    if file_path not in except_files:
+                        os.remove(file_path)
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
             except Exception as e:
@@ -41,5 +43,5 @@ class UsbDevice:
             raise
 
     @property
-    def check_mount(self):
-        return os.path.exists(self.mount_path)
+    def mount_exists(self):
+        return self.mount_path and os.path.exists(self.mount_path)

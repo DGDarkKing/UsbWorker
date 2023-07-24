@@ -64,12 +64,12 @@ class Copier:
                       f'{self.__VIDEO_REPORT_PREFIX} {self.__last_video_dt.strftime(self.__DATETIME_FORMAT)}')
 
     def start_copy(self):
-        if not self.__usb_device.check_mount:
+        if not self.__usb_device.mount_exists:
             return
         start_time = datetime.datetime.now()
         while os.path.exists(self.__usb_device.mount_path):
             time.sleep(settings.SLEEP_TIME.total_seconds())
-            if not self.__usb_device.check_mount:
+            if not self.__usb_device.mount_exists:
                 return
             elapsed_time = datetime.datetime.now() - start_time
             if elapsed_time < settings.COPY_TIME:
@@ -92,7 +92,7 @@ class Copier:
         )
 
         grouped_telemetry = dict(groupby(front_loader_data, key=lambda x: x.video_id))
-        if not self.__usb_device.check_mount:
+        if not self.__usb_device.mount_exists:
             return False
         db.Video.using(db.DST_DB).create_plugs(list(grouped_telemetry.keys()))
         exist_data = [data.id
@@ -115,7 +115,7 @@ class Copier:
             & (db.Video.finish_record < dt_to)
         ).order_by(db.Video.finish_record))
 
-        if not self.__usb_device.check_mount:
+        if not self.__usb_device.mount_exists:
             return False
         plug = db.Video.plug()
         plug.pop('id', None)
@@ -125,10 +125,10 @@ class Copier:
 
         found_video_ids = [video.id for video in videos]
         for video in ready_videos:
-            if not self.__usb_device.check_mount:
+            if not self.__usb_device.mount_exists:
                 return False
             self.__usb_device.copy(os.path.join(settings.SRC_VIDEO_PATH, video.render_name))
-            if not self.__usb_device.check_mount:
+            if not self.__usb_device.mount_exists:
                 return False
             if video.id in found_video_ids:
                 dst_record = next((x for x in videos if x.id == video.id), None)

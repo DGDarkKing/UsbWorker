@@ -15,7 +15,7 @@ def main():
     db.init_db(db.SRC_DB)
 
     usb_ready_queue = queue.SimpleQueue()
-    usb_monitor = LinuxUsbMonitor(usb_ready_queue)
+    usb_monitor = LinuxUsbMonitor(usb_ready_queue, settings.VERIFICATION_FILE)
     usb_monitor.start()
 
     while True:
@@ -23,7 +23,7 @@ def main():
 
         if db.DST_DB is not None:
             db.DST_DB.close()
-        if not usb_device.check_mount:
+        if not usb_device.mount_exists:
             continue
 
         db.DST_DB = peewee.SqliteDatabase(os.path.join(usb_device.mount_path, settings.DST_DB_NAME))
