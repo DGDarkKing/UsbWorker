@@ -36,7 +36,7 @@ class Video(BaseModel):
         return model_to_dict(Video(
             render_name='plug', render_fps=0,
             src_name='plug', src_fps=0,
-            captured_fps=0, record_time=datetime.datetime(year=1, month=1, day=1),
+            captured_fps=0, record_time=datetime.datetime.min,
         ))
 
     @staticmethod
