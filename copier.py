@@ -6,26 +6,31 @@ from itertools import groupby
 from playhouse.shortcuts import model_to_dict
 
 import settings
+from backend_reporter import BackendReporter
 from extends import create_file, strings_to_dict, PrefixSpliter
-from models.usb_device import UsbDevice
 import models.db_models as db
+from models.backend_models import Video, Telemetry, TelemetryButch
 
 
 ###     Abbreviation "dt" is mean "datetime"
 
 class Copier:
-    __TELEMETRY_REPORT_PREFIX = 'telemetry'
     __VIDEO_REPORT_PREFIX = 'video'
     __DATETIME_FORMAT: str = '%m/%d/%Y %H:%M:%S'
 
-    def __init__(self, usb_device: UsbDevice, report_file):
-        self.__usb_device = usb_device
+    def __init__(self, http_client: BackendReporter, report_file, stop_event):
+        self.__http_client = http_client
         self.__report_file = report_file
         create_file(self.__report_file)
         now = datetime.datetime.now()
         self.__last_telemetry_dt = now
         self.__last_video_dt = now
-        self.__text_spliter = PrefixSpliter([self.__TELEMETRY_REPORT_PREFIX, self.__VIDEO_REPORT_PREFIX])
+        self.__text_spliter = PrefixSpliter([self.__VIDEO_REPORT_PREFIX])
+        self.__stop_event = stop_event
+        self.__event_id = next([event_data['id']
+                                for event_data in self.__http_client.get_events()
+                                if event_data['label'] == 'Подача'],
+                               None)
         self.__check_file()
 
 
@@ -41,14 +46,7 @@ class Copier:
         not_enough_data = False
         if file_data:
             data: dict = strings_to_dict(file_data.splitlines(), self.__text_spliter)
-            dt = self.__dict_to_dt(data, self.__TELEMETRY_REPORT_PREFIX)
-            if dt:
-                self.__last_telemetry_dt = dt
-            else:
-                not_enough_data = True
-
-            dt = self.__dict_to_dt(data, self.__VIDEO_REPORT_PREFIX)
-            if dt:
+            if dt := self.__dict_to_dt(data, self.__VIDEO_REPORT_PREFIX):
                 self.__last_video_dt = dt
             else:
                 not_enough_data = True
@@ -60,17 +58,12 @@ class Copier:
 
     def __log(self):
         with open(self.__report_file, 'r+') as fws:
-            fws.write(f'{self.__TELEMETRY_REPORT_PREFIX} {self.__last_telemetry_dt.strftime(self.__DATETIME_FORMAT)}\n'
-                      f'{self.__VIDEO_REPORT_PREFIX} {self.__last_video_dt.strftime(self.__DATETIME_FORMAT)}')
+            fws.write(f'{self.__VIDEO_REPORT_PREFIX} {self.__last_video_dt.strftime(self.__DATETIME_FORMAT)}')
 
     def start_copy(self):
-        if not self.__usb_device.mount_exists:
-            return
         start_time = datetime.datetime.now()
-        while os.path.exists(self.__usb_device.mount_path):
+        while not self.__stop_event():
             time.sleep(settings.SLEEP_TIME.total_seconds())
-            if not self.__usb_device.mount_exists:
-                return
             elapsed_time = datetime.datetime.now() - start_time
             if elapsed_time < settings.COPY_TIME:
                 continue
@@ -80,80 +73,40 @@ class Copier:
 
     def copy_data(self, dt_from: datetime.datetime, dt_to: datetime.datetime):
         time.sleep(1)
-        return self.copy_telemetry(dt_from, dt_to) and self.copy_videos(dt_from, dt_to)
-
-
-    def copy_telemetry(self, dt_from: datetime.datetime, dt_to: datetime.datetime):
-        front_loader_data = list(
-            db.FrontLoader_EventTelemetryNetrwork_Model.using(db.SRC_DB).select().where(
-                (dt_from <= db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime)
-                & (db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime < dt_to)
-            ).order_by(db.FrontLoader_EventTelemetryNetrwork_Model.video)
-        )
-
-        grouped_telemetry = dict(groupby(front_loader_data, key=lambda x: x.video_id))
-        if not self.__usb_device.mount_exists:
-            return False
-        db.Video.using(db.DST_DB).create_plugs(list(grouped_telemetry.keys()))
-        exist_data = [data.id
-                      for data in db.FrontLoader_EventTelemetryNetrwork_Model.select(
-                db.FrontLoader_EventTelemetryNetrwork_Model.id).where(
-                db.FrontLoader_EventTelemetryNetrwork_Model.id << [data.id for data in front_loader_data]
-            )
-                      ]
-        if inserted_data := [data for data in front_loader_data if data.id not in exist_data]:
-            db.FrontLoader_EventTelemetryNetrwork_Model.insert_many(map(db.BaseEventTelemetryNetwork.map_to_dict,
-                                                                        inserted_data)
-                                                                    ).execute()
-        self.__last_telemetry_dt = dt_to
-        self.__log()
-        return True
-
-    def copy_videos(self, dt_from: datetime.datetime, dt_to: datetime.datetime):
-        ready_videos = list(db.Video.using(db.SRC_DB).select().where(
+        ready_videos = list(db.Video.select(db.Video.id, db.Video.render_name,
+                                            db.Video.finish_record).where(
             (dt_from <= db.Video.finish_record)
             & (db.Video.finish_record < dt_to)
         ).order_by(db.Video.finish_record))
 
-        if not self.__usb_device.mount_exists:
-            return False
-        plug = db.Video.plug()
-        plug.pop('id', None)
-        videos = db.Video.using(db.DST_DB).select().where(
-            db.Video.id << [video.id for video in ready_videos]
-        )
+        ready_videos = [Video(id=video.id, name=video.render_name, finish_record=video.finish_record)
+                        for video in ready_videos]
+        for video_record in ready_videos:
+            telemetry_of_video = list(
+                db.FrontLoader_EventTelemetryNetrwork_Model.select(
+                    db.FrontLoader_EventTelemetryNetrwork_Model.id,
+                    db.FrontLoader_EventTelemetryNetrwork_Model.zone_id,
+                    db.FrontLoader_EventTelemetryNetrwork_Model.polygon_id,
+                    db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime,
+                    db.FrontLoader_EventTelemetryNetrwork_Model.rendered_video_time
+                ).where(
+                    (dt_from <= db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime)
+                    & (db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime < dt_to)
+                ).order_by(db.FrontLoader_EventTelemetryNetrwork_Model.video)
+            )
 
-        found_video_ids = [video.id for video in videos]
-        for video in ready_videos:
-            if not self.__usb_device.mount_exists:
-                return False
-            self.__usb_device.copy(os.path.join(settings.SRC_VIDEO_PATH, video.render_name))
-            if not self.__usb_device.mount_exists:
-                return False
-            if video.id in found_video_ids:
-                dst_record = next((x for x in videos if x.id == video.id), None)
-                if dst_record != video:
-                    dst_record.update_all_data(video)
+            if telemetry_of_video:
+                telemetry_of_video = [
+                    Telemetry(id=telemetry.id,
+                              zone=telemetry.zone_id, polygon=telemetry.polygon_id,
+                              time=telemetry.record_dtime, video_time=telemetry.rendered_video_time)
+                    for telemetry in telemetry_of_video
+                ]
+
+                butch = TelemetryButch(event_id=self.__event_id,
+                                       video_data=video_record,
+                                       events_data=telemetry_of_video)
+
+                self.__http_client.post_telemtry(butch)
             else:
-                db.FrontLoader_EventTelemetryNetrwork_Model(model_to_dict(video)).save()
-
-            self.__last_video_dt = video.finish_record
-            self.__log()
-
-        return True
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                self.__http_client.post_video(video_record)

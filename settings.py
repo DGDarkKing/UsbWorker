@@ -12,6 +12,10 @@ KEY = '55269ac1-cc82-4a97-9a91-48f8d7ccbf9f'
 SRC_DB_CONNECTION = os.environ['SRC_DB_CONNECTION']
 SRC_VIDEO_PATH = os.environ['SRC_VIDEO_PATH']
 
-DST_DB_NAME = 'Telemetry.db'
+AREA_ID = os.environ['AREA_ID']
+
+PROTOCOL = os.environ['BACKEND_PROTOCOL']
+HOST = os.environ['BACKEND_HOST']
+PORT = os.environ['BACKEND_PORT']
 REPORT_FILE = 'report.txt'
 
