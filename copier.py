@@ -90,7 +90,9 @@ class Copier:
                     db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime,
                     db.FrontLoader_EventTelemetryNetrwork_Model.rendered_video_time
                 ).where(
-                    (dt_from <= db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime)
+                    (db.FrontLoader_EventTelemetryNetrwork_Model.video_id == video_record.id)
+                    & (db.FrontLoader_EventTelemetryNetrwork_Model.event == 1)
+                    & (dt_from <= db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime)
                     & (db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime < dt_to)
                 ).order_by(db.FrontLoader_EventTelemetryNetrwork_Model.video)
             )
