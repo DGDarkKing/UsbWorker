@@ -13,8 +13,8 @@ import models.db_models as db
 def main():
     db.init_db(db.SRC_DB)
 
-    backend_reporter = BackendReporter(settings.PROTOCOL, settings.HOST, settings.REPORT_FILE)
-    copier = Copier(backend_reporter, settings.REPORT_FILE, lambda : True)
+    backend_reporter = BackendReporter(settings.PROTOCOL, settings.HOST, settings.PORT)
+    copier = Copier(backend_reporter, settings.REPORT_FILE, lambda : False)
     copier.start_copy()
 
 

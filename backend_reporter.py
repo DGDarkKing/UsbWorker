@@ -68,10 +68,12 @@ class BackendReporter:
 
 
     def post_telemtry(self, telemtry: TelemetryButch):
-        requests.post(f'{self.__url}network/telemetry/', json=telemtry.to_json())
+        headers = {'Content-type': 'application/json'}
+        return requests.post(f'{self.__url}network/telemetry/', data=telemtry.to_json(), headers=headers)
 
     def post_video(self, video: Video):
-        requests.post(f'{self.__url}network/video/', json=video.to_json())
+        headers = {'Content-type': 'application/json'}
+        return requests.post(f'{self.__url}network/video/', data=video.to_json(), headers=headers)
 
 
     def get_events(self):

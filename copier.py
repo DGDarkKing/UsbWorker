@@ -27,9 +27,9 @@ class Copier:
         self.__last_video_dt = now
         self.__text_spliter = PrefixSpliter([self.__VIDEO_REPORT_PREFIX])
         self.__stop_event = stop_event
-        self.__event_id = next([event_data['id']
+        self.__event_id = next((event_data['id']
                                 for event_data in self.__http_client.get_events()
-                                if event_data['label'] == 'Подача'],
+                                if event_data['label'] == 'Подача'),
                                None)
         self.__check_file()
 
@@ -60,16 +60,26 @@ class Copier:
         with open(self.__report_file, 'r+') as fws:
             fws.write(f'{self.__VIDEO_REPORT_PREFIX} {self.__last_video_dt.strftime(self.__DATETIME_FORMAT)}')
 
+    def _first_step(self):
+        elapsed_time = datetime.datetime.now() - self.__last_video_dt
+        while elapsed_time >= settings.COPY_TIME:
+            self._copy()
+            elapsed_time = datetime.datetime.now() - self.__last_video_dt
+
     def start_copy(self):
-        start_time = datetime.datetime.now()
+        self._first_step()
         while not self.__stop_event():
-            time.sleep(settings.SLEEP_TIME.total_seconds())
-            elapsed_time = datetime.datetime.now() - start_time
+            elapsed_time = datetime.datetime.now() - self.__last_video_dt
             if elapsed_time < settings.COPY_TIME:
-                continue
-            if not self.copy_data(start_time, start_time + settings.COPY_TIME):
-                return
-            start_time = start_time + settings.COPY_TIME
+                sleep_time = settings.COPY_TIME - elapsed_time
+                time.sleep(sleep_time.total_seconds())
+            self._copy()
+
+    def _copy(self):
+        dt_to = self.__last_video_dt + settings.COPY_TIME
+        self.copy_data(self.__last_video_dt, dt_to)
+        self.__last_video_dt = dt_to
+        self.__log()
 
     def copy_data(self, dt_from: datetime.datetime, dt_to: datetime.datetime):
         time.sleep(1)
@@ -92,8 +102,6 @@ class Copier:
                 ).where(
                     (db.FrontLoader_EventTelemetryNetrwork_Model.video_id == video_record.id)
                     & (db.FrontLoader_EventTelemetryNetrwork_Model.event == 1)
-                    & (dt_from <= db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime)
-                    & (db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime < dt_to)
                 ).order_by(db.FrontLoader_EventTelemetryNetrwork_Model.video)
             )
 
@@ -109,6 +117,6 @@ class Copier:
                                        video_data=video_record,
                                        events_data=telemetry_of_video)
 
-                self.__http_client.post_telemtry(butch)
+                res = self.__http_client.post_telemtry(butch)
             else:
-                self.__http_client.post_video(video_record)
+                res = self.__http_client.post_video(video_record)
