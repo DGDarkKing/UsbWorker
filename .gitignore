@@ -5,8 +5,8 @@ __pycache__/
 *$py.class
 
 
-ubuntu_wsl_venv
-
+ubuntu_wsl_venv/
+docs/
 
 
 # C extensions
