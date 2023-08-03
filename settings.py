@@ -4,7 +4,6 @@ import os
 COPY_TIME = datetime.timedelta(hours=0, minutes=2, seconds=0)
 
 SRC_DB_CONNECTION = os.environ['SRC_DB_CONNECTION']
-SRC_VIDEO_PATH = os.environ['SRC_VIDEO_PATH']
 
 AREA_ID = int(os.environ['AREA_ID'])
 
