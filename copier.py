@@ -63,34 +63,62 @@ class Copier:
             fws.write(f'{self.__TELEMETRY_REPORT_PREFIX} {self.__last_telemetry_dt.strftime(self.__DATETIME_FORMAT)}\n'
                       f'{self.__VIDEO_REPORT_PREFIX} {self.__last_video_dt.strftime(self.__DATETIME_FORMAT)}')
 
-    def start_copy(self):
-        if not self.__usb_device.mount_exists:
-            return
-        start_time = datetime.datetime.now()
-        while os.path.exists(self.__usb_device.mount_path):
-            time.sleep(settings.SLEEP_TIME.total_seconds())
-            if not self.__usb_device.mount_exists:
-                return
-            elapsed_time = datetime.datetime.now() - start_time
-            if elapsed_time < settings.COPY_TIME:
-                continue
-            if not self.copy_data(start_time, start_time + settings.COPY_TIME):
-                return
-            start_time = start_time + settings.COPY_TIME
+    def __first_step(self):
+        now = datetime.datetime.now()
+        telemetry = now - self.__last_telemetry_dt
 
-    def copy_data(self, dt_from: datetime.datetime, dt_to: datetime.datetime):
+        while telemetry > settings.COPY_TIME:
+            if not self.copy_telemetry(self.__last_telemetry_dt, self.__last_telemetry_dt + settings.COPY_TIME):
+                return False
+            now = datetime.datetime.now()
+            telemetry = now - self.__last_telemetry_dt
+
+        video = now - self.__last_video_dt
+        while video > settings.COPY_TIME:
+            if not self.copy_videos(self.__last_video_dt, self.__last_video_dt + settings.COPY_TIME):
+                return False
+            now = datetime.datetime.now()
+            video = now - self.__last_video_dt
+
+        return True
+
+    def start_copy(self):
+        try:
+            if not (self.__usb_device.mount_exists and self.__first_step()):
+                return
+            start_time = datetime.datetime.now()
+            while self.__usb_device.mount_exists:
+                time.sleep(settings.SLEEP_TIME.total_seconds())
+                if not self.__usb_device.mount_exists:
+                    return
+                elapsed_time = datetime.datetime.now() - start_time
+                if elapsed_time < settings.COPY_TIME:
+                    continue
+                if not self.copy_data():
+                    return
+                start_time = start_time + settings.COPY_TIME
+        except: # Logged
+            return
+
+    def copy_data(self):
         time.sleep(1)
-        return self.copy_telemetry(dt_from, dt_to) and self.copy_videos(dt_from, dt_to)
+        return (self.copy_telemetry(self.__last_telemetry_dt, self.__last_telemetry_dt + settings.COPY_TIME)
+                and self.copy_videos(self.__last_video_dt, self.__last_video_dt + settings.COPY_TIME))
 
 
     def copy_telemetry(self, dt_from: datetime.datetime, dt_to: datetime.datetime):
         front_loader_data = list(
             db.FrontLoader_EventTelemetryNetrwork_Model.using(db.SRC_DB).select().where(
-                (dt_from <= db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime)
+                (db.FrontLoader_EventTelemetryNetrwork_Model.event == 1)
+                & (dt_from <= db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime)
                 & (db.FrontLoader_EventTelemetryNetrwork_Model.record_dtime < dt_to)
             ).order_by(db.FrontLoader_EventTelemetryNetrwork_Model.video)
         )
 
+        if not front_loader_data:
+            self.__last_telemetry_dt = dt_to
+            self.__log()
+            return True
         grouped_telemetry = dict(groupby(front_loader_data, key=lambda x: x.video_id))
         if not self.__usb_device.mount_exists:
             return False
@@ -117,6 +145,10 @@ class Copier:
 
         if not self.__usb_device.mount_exists:
             return False
+        if not ready_videos:
+            self.__last_video_dt = dt_to
+            self.__log()
+            return True
         plug = db.Video.plug()
         plug.pop('id', None)
         videos = db.Video.using(db.DST_DB).select().where(
@@ -140,7 +172,10 @@ class Copier:
             self.__last_video_dt = video.finish_record
             self.__log()
 
+        self.__last_video_dt = dt_to
+        self.__log()
         return True
+
 
 
 

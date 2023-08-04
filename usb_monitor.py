@@ -25,7 +25,6 @@ class LinuxUsbMonitor(threading.Thread):
 
         context = pyudev.Context()
         self.__monitor = self.__init_monitor(context)
-        self.__lsblk_command = blkinfo.BlkDiskInfo()
 
     def __init_monitor(self, context):
         monitor = pyudev.Monitor.from_netlink(context)
@@ -38,8 +37,8 @@ class LinuxUsbMonitor(threading.Thread):
         verify_file = os.path.join(usb_device.mount_path, self.__verification_file)
         if usb_device.mount_exists and os.path.isfile(verify_file):
             with open(verify_file, 'r') as frs:
-                lines = frs.readlines()
-            return lines and lines[0] == self.__access_key
+                line = frs.readline().strip()
+            return line and line == self.__access_key
         return False
 
     def __clear_usb(self, usb_device):
@@ -48,6 +47,7 @@ class LinuxUsbMonitor(threading.Thread):
             lines = []
             with open(verify_file, 'r') as frs:
                 lines = frs.readlines()
+                lines = [res for x in lines if (res := x.strip())]
             if len(lines) == 1:
                 usb_device.clear(except_files=[self.__verification_file])
                 return True
@@ -66,13 +66,20 @@ class LinuxUsbMonitor(threading.Thread):
                     return usb_device
         return None
 
+    @property
+    def ls_block(self):
+        return blkinfo.BlkDiskInfo()
+
     def __find_work_usb(self):
         # TODO: НУЖНО сделать сканирование через pyudev, чтобы использовать готовую функцию __create_usb
         work_usbs = []
-        for disk in [x for x in self.__lsblk_command.get_disks() if x['name'][:2] == 'sd']:
+        filtered_disks = self.ls_block.get_disks({'tran': 'usb'})
+        for disk in [x for x in filtered_disks if x['name'][:2] == 'sd']:
             if usb:= self.__find_mount(disk):
                 work_usbs.append(usb)
 
+        if not work_usbs:
+            return
         work_usb = None
         delete_usbs = []
         for usb in work_usbs:
@@ -83,7 +90,8 @@ class LinuxUsbMonitor(threading.Thread):
                     work_usb = usb
 
         work_usbs = [usb for usb in work_usbs if usb not in delete_usbs]
-        self.__usb_ready_queue.put(pickle.dumps(work_usb))
+        if work_usb:
+            self.__usb_ready_queue.put(pickle.dumps(work_usb))
         for usb in work_usbs:
             self.__usb_ready_queue.put(pickle.dumps(usb))
 
@@ -109,7 +117,7 @@ class LinuxUsbMonitor(threading.Thread):
         if 'sd' != fullname[0][:2]:
             del fullname[0]
         time.sleep(1)
-        device_additional_data = self.__lsblk_command.get_disks({'name': fullname[0]})
+        device_additional_data = self.ls_block.get_disks({'name': fullname[0]})
         if device_additional_data:
             if len(fullname) == 2:
                 mount = list(filter(lambda x: x['name'] == fullname[1],
