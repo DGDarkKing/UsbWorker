@@ -7,7 +7,7 @@ from playhouse.shortcuts import model_to_dict
 
 import settings
 from extends import create_file, strings_to_dict, PrefixSpliter
-from models.usb_device import UsbDevice
+from models.usb_device import UsbDevice, UsbAvailableSizeException
 import models.db_models as db
 
 
@@ -159,7 +159,10 @@ class Copier:
         for video in ready_videos:
             if not self.__usb_device.mount_exists:
                 return False
-            self.__usb_device.copy(os.path.join(settings.SRC_VIDEO_PATH, video.render_name))
+            try:
+                self.__usb_device.copy(os.path.join(settings.SRC_VIDEO_PATH, video.render_name))
+            except UsbAvailableSizeException:
+                return False
             if not self.__usb_device.mount_exists:
                 return False
             if video.id in found_video_ids:

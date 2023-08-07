@@ -57,7 +57,7 @@ class LinuxUsbMonitor(threading.Thread):
     def __find_mount(self, disk):
         if disk['mountpoint']:
             # TODO: replace 'plug_path'
-            usb_device = UsbDevice('plug_path', disk['mountpoint'])
+            usb_device = UsbDevice('plug_path', disk['mountpoint'], 10*1024)
             if self.__validate_usb(usb_device):
                 return usb_device
         if disk['children']:
@@ -110,7 +110,6 @@ class LinuxUsbMonitor(threading.Thread):
                         print(f'Failed to process usb device "{usb_device}".\n\tReason: {e}')
 
 
-
     def __create_usb(self, device_path):
         dev_path = device_path
         fullname = dev_path.split('/')[-2:]
@@ -125,7 +124,7 @@ class LinuxUsbMonitor(threading.Thread):
             else:
                 mount = device_additional_data[0]['mountpoint']
             print(f'MOUNTPOINT: {mount}')
-            usb_device = UsbDevice(dev_path, mount)
+            usb_device = UsbDevice(dev_path, mount, 10*1024)
             if self.__validate_usb(usb_device):
                 return usb_device
         return None

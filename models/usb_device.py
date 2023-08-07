@@ -5,10 +5,15 @@ from dataclasses import dataclass, field
 from distutils.dir_util import copy_tree
 
 
+class UsbAvailableSizeException(Exception):
+    pass
+
+
 @dataclass
 class UsbDevice:
     device_path: str
     mount_path: str
+    reserve_size: int
     dt_connect: datetime.datetime = field(default_factory=datetime.datetime.now)
 
     def clear(self, except_files: list[str] = None):
@@ -25,6 +30,11 @@ class UsbDevice:
                 # TODO: Logging
                 print(f'Failed to delete "{file_path}".\n\tReason: {e}')
 
+    @property
+    def available_size(self):
+        disk = os.statvfs(self.mount_path)
+        return disk.f_bfree * disk.f_bsize - self.reserve_size
+
     def copy(self, src_path: str, dist_dir = './', rewrite=False):
         dist_path = os.path.join(self.mount_path, dist_dir)
         name = src_path[src_path.rfind('/')+1 :]
@@ -33,6 +43,9 @@ class UsbDevice:
         dist_view = os.path.join(dist_path, name)
         try:
             if os.path.isfile(src_path):
+                file_size = os.path.getsize(src_path)
+                if self.available_size < file_size:
+                    raise UsbAvailableSizeException()
                 if (not os.path.isfile(dist_view)
                         or os.stat(src_path).st_size > os.stat(dist_view).st_size) :
                     shutil.copy(src_path, dist_path)

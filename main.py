@@ -40,8 +40,13 @@ def main():
             with open(usb_device.get_file(settings.VERIFICATION_FILE), 'a') as fws:
                 fws.write(str(settings.AREA_ID))
 
-        copier = Copier(usb_device, settings.REPORT_FILE)
-        copier.start_copy()
+        try:
+            copier = Copier(usb_device, settings.REPORT_FILE)
+            copier.start_copy()
+        except KeyboardInterrupt:
+            return # TODO log
+        except Exception:
+            pass # TODO log
 
 
 
