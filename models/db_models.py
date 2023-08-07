@@ -22,9 +22,9 @@ class Video(BaseModel):
     class Meta:
         db_table = 'Videos'
 
-    render_name = peewee.CharField(max_length=150)
+    render_name = peewee.CharField(max_length=255)
     render_fps = peewee.IntegerField()
-    src_name = peewee.CharField(max_length=150)
+    src_name = peewee.CharField(max_length=1024)
     src_fps = peewee.IntegerField()
     captured_fps = peewee.IntegerField()
     record_time = peewee.DateTimeField(default=datetime.datetime.now)
@@ -35,11 +35,16 @@ class BaseEventTelemetryNetwork(BaseModel):
     event = peewee.IntegerField()
     polygon_id = peewee.IntegerField()
     zone_id = peewee.IntegerField()
-    record_dtime = peewee.DateTimeField(index=True)
+    record_dtime = peewee.DateTimeField()
 
     rendered_video_time = peewee.TimeField()
     source_video_time = peewee.TimeField()
     video = peewee.ForeignKeyField(Video)
+
+    class Meta:
+        indexes = (
+            (('rendered_video_time', 'event'), True),
+        )
 
     @staticmethod
     def map_to_dict(record):
