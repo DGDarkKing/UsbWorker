@@ -43,7 +43,7 @@ class BaseEventTelemetryNetwork(BaseModel):
 
     class Meta:
         indexes = (
-            (('record_dtime', 'event'), True),
+            (('record_dtime', 'event'), False),
         )
 
     @staticmethod
