@@ -15,10 +15,11 @@ def main():
     db.init_db(db.SRC_DB)
 
     usb_ready_queue = queue.SimpleQueue()
-    usb_monitor = LinuxUsbMonitor(usb_ready_queue, settings.VERIFICATION_FILE)
+    usb_monitor = LinuxUsbMonitor(usb_ready_queue,
+                                  settings.VERIFICATION_FILE, settings.KEY)
     usb_monitor.start()
-    # TODO: DO REFACTORING: made to create report file and init its
-    Copier(None, settings.REPORT_FILE)
+    # TODO:
+    Copier.create_report_file(settings.REPORT_FILE)
 
     while True:
         usb_device: UsbDevice = pickle.loads(usb_ready_queue.get())

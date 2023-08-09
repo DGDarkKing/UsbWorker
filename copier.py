@@ -6,7 +6,7 @@ from itertools import groupby
 from playhouse.shortcuts import model_to_dict
 
 import settings
-from extends import create_file, strings_to_dict, PrefixSpliter
+from extends.general import create_file, strings_to_dict, PrefixSpliter
 from models.usb_device import UsbDevice, UsbAvailableSizeException
 import models.db_models as db
 
